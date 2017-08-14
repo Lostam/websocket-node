@@ -2,8 +2,8 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const Socket_1 = require("./Socket");
 class WebClient extends Socket_1.Socket {
-    constructor() {
-        super();
+    constructor(dataManager, id) {
+        super(dataManager, id);
         this.ioClient = require('socket.io-client');
         this.url = process.env.NODE_URL || 'http://localhost:' + this.port;
         this.connected = false;
@@ -14,6 +14,7 @@ class WebClient extends Socket_1.Socket {
     checkConnection() {
         return new Promise((resolve, reject) => {
             this.socketEmitter.on('connect', () => {
+                this.initialData();
                 this.write();
                 resolve();
                 this.connected = true;
@@ -36,19 +37,25 @@ class WebClient extends Socket_1.Socket {
             });
             this.socketEmitter.on('disconnect', (reason) => {
                 console.log('disconnect', reason);
+                this.emit('clientDisconnect');
                 this.disconnect();
-                let options = {
-                    'reconnection': true,
-                    'reconnectionDelay': 1000,
-                    'reconnectionDelayMax': 3000,
-                    'reconnectionAttempts': 5
-                };
-                this.connect(options);
             });
         });
     }
-    isConnected() {
-        return this.connected;
+    initialData() {
+        this.socketEmitter.emit('newSlaveAlert', this.id);
+        this.setListeners();
+    }
+    setListeners() {
+        this.socketEmitter.on("updateNewSlave", (data, sockets) => {
+            this.dataManager.setSockets(sockets);
+            this.dataManager.setData(data);
+            console.log("Data Length : ", this.dataManager.getData().length);
+        });
+        this.socketEmitter.on('newSocket', (id, index) => {
+            this.dataManager.addSocket(id, index);
+            console.log("Data Socket : ", this.dataManager.getSockets());
+        });
     }
     write() {
         setInterval(() => {

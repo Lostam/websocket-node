@@ -1,4 +1,5 @@
 import {Socket} from "./Socket";
+import {DataManager} from "./DataManager";
 
 
 export class WebClient extends Socket {
@@ -9,8 +10,8 @@ export class WebClient extends Socket {
     public socketEmitter: SocketIOClient.Socket;
     private connected: boolean = false;
 
-    constructor() {
-        super();
+    constructor(dataManager:DataManager,id:string) {
+        super(dataManager,id);
     }
 
     connect(options) {
@@ -20,6 +21,7 @@ export class WebClient extends Socket {
     public checkConnection() {
         return new Promise((resolve, reject) => {
             this.socketEmitter.on('connect', () => {
+                this.initialData();
                 this.write();
                 resolve();
                 this.connected = true;
@@ -42,21 +44,30 @@ export class WebClient extends Socket {
             });
             this.socketEmitter.on('disconnect', (reason) => {
                 console.log('disconnect' , reason);
+                this.emit('clientDisconnect');
                 this.disconnect();
-                let options = {
-                    'reconnection': true,
-                    'reconnectionDelay': 1000,
-                    'reconnectionDelayMax': 3000,
-                    'reconnectionAttempts': 5
-                };
-                this.connect(options)
+
             });
         });
+    }
+
+    public initialData () {
+        this.socketEmitter.emit('newSlaveAlert',this.id);
+        this.setListeners();
 
     }
 
-    public isConnected() {
-        return this.connected;
+    private setListeners() {
+
+        this.socketEmitter.on("updateNewSlave",(data,sockets:Array<any>)=>{
+            this.dataManager.setSockets(sockets);
+            this.dataManager.setData(data);
+            console.log("Data Length : " , this.dataManager.getData().length);
+        });
+        this.socketEmitter.on('newSocket',(id,index)=>{
+            this.dataManager.addSocket(id,index);
+            console.log("Data Socket : " ,this.dataManager.getSockets());
+        })
     }
 
     public write() {

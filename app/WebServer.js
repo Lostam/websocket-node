@@ -2,34 +2,38 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 const Socket_1 = require("./Socket");
 class WebServer extends Socket_1.Socket {
-    constructor() {
-        super();
+    constructor(dataManager, id) {
+        super(dataManager, id);
         this.ioServer = require('socket.io').listen(this.http);
-        this.data = [];
         this.http.listen(this.port);
         console.log(`Listening on port ${this.port}...`);
         this.setUpConnection();
     }
     setUpConnection() {
         this.ioServer.sockets.on('connection', (socket) => {
-            // console.log('connected');
             socket.on('dataSync', (data) => {
                 console.log(data);
-                this.data.push(data);
+                this.dataManager.addData(data);
             });
             socket.on('disconnect', (data) => {
                 console.log(`${data} has disconnected`);
             });
-            setInterval(() => {
-                socket.broadcast.emit('newUpdate', `reached ${this.data.length} data`);
-                this.printData();
-            }, 1000 * 10 * 3);
+            socket.on('newSlaveAlert', (id) => {
+                let index = this.dataManager.getNextMapIndex();
+                this.dataManager.addSocket(id, index);
+                socket.emit("updateNewSlave", this.dataManager.getData(), this.dataManager.getSockets());
+                this.ioServer.sockets.emit("newSocket", id, index);
+            });
         });
+        setInterval(() => {
+            this.ioServer.sockets.emit('newUpdate', `reached ${this.dataManager.getData().length} data`);
+            this.printData();
+        }, 1000 * 10 * 1);
     }
     printData() {
         console.log('Clients :', this.ioServer.clients().sockets.length);
-        this.Logger.log({ data: this.data.length, id: this.id });
-        this.data = [];
+        this.Logger.log({ data: this.dataManager.getData().length, id: this.id });
+        this.dataManager.clear();
     }
 }
 exports.WebServer = WebServer;
