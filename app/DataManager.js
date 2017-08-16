@@ -4,7 +4,6 @@ class DataManager {
     constructor(id) {
         this.data = [];
         this.sockets = new Map();
-        console.log(this.sockets);
         this.setId(id);
     }
     setId(id) {
@@ -20,16 +19,13 @@ class DataManager {
         return this.data;
     }
     addData(newData) {
-        this.data.push(newData);
+        this.data = DataManager.joinArraysWithoutDuplications(this.data, newData);
+        // this.data.push(newData)
     }
     addSocket(newSocket, index) {
-        console.log(this.sockets);
-        console.log(index);
-        console.log(newSocket);
         this.sockets.set(index, newSocket);
     }
     setSockets(sockets) {
-        console.log('sockets', sockets);
         this.sockets = new Map(sockets);
     }
     getSockets() {
@@ -42,6 +38,21 @@ class DataManager {
             big = key > big ? key : big;
         }
         return big + 1;
+    }
+    getNextMaster() {
+        return this.sockets.get(1);
+    }
+    findDiff(ownArr, remoteArr) {
+        let arr = DataManager.joinArraysWithoutDuplications(ownArr, remoteArr);
+        let differenceFrom1 = arr.filter(x => ownArr.indexOf(x) == -1);
+        let differenceFrom2 = arr.filter(x => remoteArr.indexOf(x) == -1);
+        return {
+            own: differenceFrom1,
+            remote: differenceFrom2
+        };
+    }
+    static joinArraysWithoutDuplications(arr1, arr2) {
+        return [...new Set([...arr1, ...arr2])];
     }
     clear() {
         this.data = [];

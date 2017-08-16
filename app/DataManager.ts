@@ -6,7 +6,6 @@ export class DataManager {
 
     constructor(id: string) {
         this.sockets = new Map();
-        console.log(this.sockets);
         this.setId(id);
     }
 
@@ -27,34 +26,48 @@ export class DataManager {
         return this.data;
     }
 
-    public addData(newData) {
-        this.data.push(newData)
+    public addData(newData:Array<any>):void {
+        this.data = DataManager.joinArraysWithoutDuplications(this.data,newData);
+        // this.data.push(newData)
     }
 
 
-    public addSocket(newSocket, index) {
-        console.log(this.sockets);
-        console.log(index);
-        console.log(newSocket);
+    public addSocket(newSocket: string, index: number): void {
         this.sockets.set(index, newSocket);
     }
 
-    public setSockets(sockets:Array<Array<number | string>>) {
-        console.log('sockets', sockets);
+    public setSockets(sockets: Array<[number, string]>) {
         this.sockets = new Map(sockets);
     }
 
-    public getSockets(): Array<Array<number | string>> {
+    public getSockets(): Array<[number, string]> {
         return Array.from(this.sockets);
     }
 
-    public getNextMapIndex ():number {
+    public getNextMapIndex(): number {
         let map = this.sockets;
         let big: number = 0;
         for (let key of map.keys()) {
             big = key > big ? key : big;
         }
-        return big+1;
+        return big + 1;
+    }
+
+    public getNextMaster():string {
+        return this.sockets.get(1);
+    }
+    public findDiff(ownArr, remoteArr):{own:Array<any>,remote:Array<any>} {
+        let arr = DataManager.joinArraysWithoutDuplications(ownArr,remoteArr);
+        let differenceFrom1 = arr.filter(x => ownArr.indexOf(x) == -1);
+        let differenceFrom2 = arr.filter(x => remoteArr.indexOf(x) == -1);
+        return {
+            own:differenceFrom1,
+            remote:differenceFrom2
+        }
+    }
+
+    static joinArraysWithoutDuplications(arr1: Array<any>, arr2: Array<any>) {
+        return [...new Set([...arr1, ...arr2])];
     }
 
     public clear(): void {

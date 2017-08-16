@@ -3,14 +3,11 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const Logger_1 = require("./Logger");
 const events_1 = require("events");
 // import EventEmitter = NodeJS.EventEmitter;
-const app = require('express')();
-const http = require('http').createServer(app);
 class Socket extends events_1.EventEmitter {
     constructor(dataManager, id) {
         super();
         this.Logger = Logger_1.Logger;
-        this.port = 3000;
-        this.http = http;
+        this.port = process.env.NODE_PORT || 3000;
         this.id = id;
         this.dataManager = dataManager;
     }
@@ -19,6 +16,9 @@ class Socket extends events_1.EventEmitter {
     }
     getPort() {
         return this.port;
+    }
+    getType() {
+        return this.type;
     }
 }
 exports.Socket = Socket;
