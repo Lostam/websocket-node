@@ -1,69 +1,81 @@
 import {Socket} from "./Socket";
 import {DataManager} from "./DataManager";
-const app = require('express')();
-const server = require('http').createServer();
 
+const WebSocket = require("ws");
 
 export class WebServer extends Socket {
 
-    private ioServer = require('socket.io')(this.port,{ pingInterval: 60000 } );
+    private ioServer;
+
     protected id: string;
     protected type = 'Master';
 
-    constructor(dataManager:DataManager,id:string) {
-        super(dataManager,id);
-        // this.http.listen(this.port);
-        // console.log(`Listening on port ${this.port}...`);
+    constructor(dataManager: DataManager, id: string) {
+        super(dataManager, id);
+        this.serverListen();
+        let server = this.server;
+        this.ioServer = new WebSocket.Server({server});
+        this.setListeners();
         this.setUpConnection();
-        console.log('My Id: ' , this.id);
     }
 
     setUpConnection() {
-        this.ioServer.sockets.on('connection', (socket) => {
-            console.log('Connected');
-            socket.on('dataSync', (data:string) => {
-                console.log(data);
-                this.dataManager.addData([data]);
+        this.ioServer.on('connection', (ws: Socket) => {
+            ws.on('message', (message) => {
+                this.handleMessage(message, ws);
             });
-
-            socket.on('disconnect',(data)=>{
-                console.log(`${data} has disconnected`)
-            });
-
-            socket.on('newSlaveSync',(id:string,slaveData:string[])=>{
-
-                let index = this.dataManager.getNextMapIndex();
-                this.dataManager.addSocket(id,index);
-                let sockets:Array<any> = this.dataManager.getSockets();
-                this.syncData(socket,slaveData);
-
-                this.ioServer.sockets.emit("newSocket",id,index);
-                socket.emit("updateNewSlave",sockets);
-                this.ioServer.sockets.emit("newSocket",id,index);
-            });
+            console.log('connected');
         });
-        setInterval(() => {
-            this.ioServer.sockets.emit('newUpdate', `reached ${this.dataManager.getData().length} data`);
-            this.printData();
-        }, 1000 * 10 * 3);
     }
 
-    syncData (socket,slaveData) {
-        let data:Array<any> = this.dataManager.getData();
-        let difference = this.dataManager.findDiff(data,slaveData);
-        if (difference.own.length>0) {
-            this.dataManager.addData(difference.own);
-            socket.broadcast.emit('dataSync',difference.own)
-        }
-        if (difference.remote.length>0) {
-            socket.emit("dataSync",difference.remote);
-        }
-
+    protected send(name: string, content: any, whom?: any) {
+        let obj = {};
+        obj[name] = content;
+        let message = JSON.stringify(obj);
+        whom.send(message)
     }
 
-    printData() {
-        console.log('Clients :', this.ioServer.clients().sockets.length);
-        this.Logger.log({data: this.dataManager.getData().length, id: this.id});
+    private sendAllElse(event: string, data: any, ws: Socket) {
+        this.ioServer.clients.forEach((client) => {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+                this.send(event, data, client)
+            }
+        });
+    }
+
+    private sendAll(event: string, data: any) {
+        this.ioServer.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+                this.send(event, data, client)
+            }
+        });
+    }
+
+    setListeners() {
+        this.listener['new-socket'] = (message, ws?: Socket) => {
+            console.log(message);
+            this.send('new-socket', 'Got Ya ' + this.id, ws);
+            this.sendAllElse('new-socket', 'New Friend ' + message, ws)
+        };
+
+        this.listener['new'] = (message, ws?: Socket) => {
+            console.log('Yo Yo Yo' + "  " + message);
+            this.send('new', 'Got Ya ' + this.id, ws);
+            this.sendAllElse('new', 'New Friend ' + message, ws)
+        };
+        this.listen('sync', (message, ws?: Socket) => {
+            this.dataManager.addData(message);
+            console.log('got ' + message);
+            this.sendAllElse('sync', message, ws);
+        });
+        this.listen('alive', (message, ws?: Socket) => {
+            console.log(message);
+            this.send('alive', "Yo I'm alive too", ws);
+        })
+    }
+
+    public newData(data) {
+        this.sendAll('sync', data);
     }
 
 

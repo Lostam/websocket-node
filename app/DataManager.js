@@ -19,7 +19,7 @@ class DataManager {
         return this.data;
     }
     addData(newData) {
-        this.data = DataManager.joinArraysWithoutDuplications(this.data, newData);
+        this.data = DataManager.joinArraysWithoutDuplications(this.data, [newData]);
         // this.data.push(newData)
     }
     addSocket(newSocket, index) {
@@ -59,4 +59,4 @@ class DataManager {
     }
 }
 exports.DataManager = DataManager;
-//# sourceMappingURL=dataManager.js.map
+//# sourceMappingURL=DataManager.js.map

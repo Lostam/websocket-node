@@ -1,57 +1,68 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const Socket_1 = require("./Socket");
-const app = require('express')();
-const server = require('http').createServer();
+const WebSocket = require("ws");
 class WebServer extends Socket_1.Socket {
     constructor(dataManager, id) {
         super(dataManager, id);
-        this.ioServer = require('socket.io')(this.port, { pingInterval: 60000 });
         this.type = 'Master';
-        // this.http.listen(this.port);
-        // console.log(`Listening on port ${this.port}...`);
+        this.serverListen();
+        let server = this.server;
+        this.ioServer = new WebSocket.Server({ server });
+        this.setListeners();
         this.setUpConnection();
-        console.log('My Id: ', this.id);
     }
     setUpConnection() {
-        this.ioServer.sockets.on('connection', (socket) => {
-            console.log('Connected');
-            socket.on('dataSync', (data) => {
-                console.log(data);
-                this.dataManager.addData([data]);
+        this.ioServer.on('connection', (ws) => {
+            ws.on('message', (message) => {
+                this.handleMessage(message, ws);
             });
-            socket.on('disconnect', (data) => {
-                console.log(`${data} has disconnected`);
-            });
-            socket.on('newSlaveSync', (id, slaveData) => {
-                let index = this.dataManager.getNextMapIndex();
-                this.dataManager.addSocket(id, index);
-                let sockets = this.dataManager.getSockets();
-                this.syncData(socket, slaveData);
-                this.ioServer.sockets.emit("newSocket", id, index);
-                socket.emit("updateNewSlave", sockets);
-                this.ioServer.sockets.emit("newSocket", id, index);
-            });
+            console.log('connected');
         });
-        setInterval(() => {
-            this.ioServer.sockets.emit('newUpdate', `reached ${this.dataManager.getData().length} data`);
-            this.printData();
-        }, 1000 * 10 * 3);
     }
-    syncData(socket, slaveData) {
-        let data = this.dataManager.getData();
-        let difference = this.dataManager.findDiff(data, slaveData);
-        if (difference.own.length > 0) {
-            this.dataManager.addData(difference.own);
-            socket.broadcast.emit('dataSync', difference.own);
-        }
-        if (difference.remote.length > 0) {
-            socket.emit("dataSync", difference.remote);
-        }
+    send(name, content, whom) {
+        let obj = {};
+        obj[name] = content;
+        let message = JSON.stringify(obj);
+        whom.send(message);
     }
-    printData() {
-        console.log('Clients :', this.ioServer.clients().sockets.length);
-        this.Logger.log({ data: this.dataManager.getData().length, id: this.id });
+    sendAllElse(event, data, ws) {
+        this.ioServer.clients.forEach((client) => {
+            if (client !== ws && client.readyState === WebSocket.OPEN) {
+                this.send(event, data, client);
+            }
+        });
+    }
+    sendAll(event, data) {
+        this.ioServer.clients.forEach((client) => {
+            if (client.readyState === WebSocket.OPEN) {
+                this.send(event, data, client);
+            }
+        });
+    }
+    setListeners() {
+        this.listener['new-socket'] = (message, ws) => {
+            console.log(message);
+            this.send('new-socket', 'Got Ya ' + this.id, ws);
+            this.sendAllElse('new-socket', 'New Friend ' + message, ws);
+        };
+        this.listener['new'] = (message, ws) => {
+            console.log('Yo Yo Yo' + "  " + message);
+            this.send('new', 'Got Ya ' + this.id, ws);
+            this.sendAllElse('new', 'New Friend ' + message, ws);
+        };
+        this.listen('sync', (message, ws) => {
+            this.dataManager.addData(message);
+            console.log('got ' + message);
+            this.sendAllElse('sync', message, ws);
+        });
+        this.listen('alive', (message, ws) => {
+            console.log(message);
+            this.send('alive', "Yo I'm alive too", ws);
+        });
+    }
+    newData(data) {
+        this.sendAll('sync', data);
     }
 }
 exports.WebServer = WebServer;

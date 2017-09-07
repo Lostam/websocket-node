@@ -15,4 +15,13 @@
 //     console.log('x');
 //     res.send('OK');
 // })
+(function () {
+    let message = "aaa";
+    let event = "sss";
+    let arr = ["aaa", "sss"];
+    let json = JSON.stringify(arr);
+    let unjson = JSON.parse('["dataSync",".z4vjo::313413"]');
+    console.log(json);
+    console.log(unjson[0],unjson[1]);
 
+})();

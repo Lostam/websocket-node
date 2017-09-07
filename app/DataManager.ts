@@ -26,8 +26,8 @@ export class DataManager {
         return this.data;
     }
 
-    public addData(newData:Array<any>):void {
-        this.data = DataManager.joinArraysWithoutDuplications(this.data,newData);
+    public addData(newData: any): void {
+        this.data = DataManager.joinArraysWithoutDuplications(this.data, [newData]);
         // this.data.push(newData)
     }
 
@@ -53,16 +53,17 @@ export class DataManager {
         return big + 1;
     }
 
-    public getNextMaster():string {
+    public getNextMaster(): string {
         return this.sockets.get(1);
     }
-    public findDiff(ownArr, remoteArr):{own:Array<any>,remote:Array<any>} {
-        let arr = DataManager.joinArraysWithoutDuplications(ownArr,remoteArr);
+
+    public findDiff(ownArr, remoteArr): { own: Array<any>, remote: Array<any> } {
+        let arr = DataManager.joinArraysWithoutDuplications(ownArr, remoteArr);
         let differenceFrom1 = arr.filter(x => ownArr.indexOf(x) == -1);
         let differenceFrom2 = arr.filter(x => remoteArr.indexOf(x) == -1);
         return {
-            own:differenceFrom1,
-            remote:differenceFrom2
+            own: differenceFrom1,
+            remote: differenceFrom2
         }
     }
 

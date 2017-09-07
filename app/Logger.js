@@ -7,20 +7,26 @@ const winston = require('winston');
 require('winston-loggly-bulk');
 class Logger {
     constructor() {
-        this.INPUT_TOKEN = '892712bd-b0c5-4770-9bb4-cbf9a18394f7';
-        this.SUB_DOMAIN = 'zippor';
-        this.TAGS = 'SocketTest';
-        winston.add(winston.transports.Loggly, {
-            inputToken: this.INPUT_TOKEN,
-            subdomain: this.SUB_DOMAIN,
-            tags: [this.TAGS],
-            json: true
+        let remoteTransport = [
+            new winston.transports.Loggly({
+                inputToken: Logger.INPUT_TOKEN,
+                subdomain: Logger.SUB_DOMAIN,
+                tags: [Logger.TAGS],
+                json: true
+            })
+        ];
+        this.remoteLogger = new winston.Logger({
+            transports: remoteTransport,
+            exitOnError: false
         });
     }
-    log(error) {
-        winston.log('info', error);
+    log(message) {
+        this.remoteLogger['info'](message);
     }
 }
+Logger.INPUT_TOKEN = '892712bd-b0c5-4770-9bb4-cbf9a18394f7';
+Logger.SUB_DOMAIN = 'zippor';
+Logger.TAGS = 'Websocket';
 let logger = new Logger();
 exports.Logger = logger;
 //# sourceMappingURL=Logger.js.map

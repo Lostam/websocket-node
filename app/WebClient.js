@@ -1,81 +1,111 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const Socket_1 = require("./Socket");
+const WebSocket = require("ws");
 class WebClient extends Socket_1.Socket {
     constructor(dataManager, id) {
         super(dataManager, id);
-        this.ioClient = require('socket.io-client');
+        this.intervals = [];
         this.type = 'Slave';
-        this.url = process.env.NODE_URL || 'http://localhost:' + this.port;
+        this.url = process.env.NODE_URL || 'ws://localhost:8080';
+        this.port = process.env.NODE_PORT || WebClient.getRandomPort();
     }
-    connect(options) {
-        console.log('Trying to connect on url: ', this.url);
-        this.socketEmitter = this.ioClient.connect(this.url, options);
-    }
-    searchMaster() {
+    searchMaster(options) {
         return new Promise((resolve, reject) => {
-            this.socketEmitter.on('connect', () => {
-                console.log('My Id: ', this.id);
-                this.initialData();
-                this.write();
+            this.connectAttempt(options)
+                .then(() => {
                 resolve();
-            });
-            this.socketEmitter.on('reconnect_failed', (timeout) => {
+                this.init();
+            })
+                .catch(() => {
                 reject();
-                console.log('connect_failed', timeout);
             });
         });
     }
-    initialData() {
-        let data = this.dataManager.getData();
-        this.socketEmitter.emit('newSlaveSync', this.id, data);
-        this.setListeners();
-        this.setConnectionListeners();
+    connectAttempt(options, currentRetry) {
+        return new Promise((resolve, reject) => {
+            currentRetry = currentRetry || 0;
+            options = options || { reconnectionAttempts: 999, reconnectionDelay: 2000, reconnectionDelayMax: 10000 };
+            if (currentRetry !== options.reconnectionAttempts) {
+                console.log('Retry number : ', currentRetry);
+                this.ioClient = new WebSocket(this.url);
+                this.ioClient.onerror = (err) => {
+                    setTimeout(() => {
+                        return this.connectAttempt(options, currentRetry + 1)
+                            .then(() => {
+                            resolve();
+                        })
+                            .catch(() => {
+                            reject();
+                        });
+                    }, options.reconnectionDelay);
+                };
+                this.ioClient.onopen = (() => {
+                    this.send('new-socket', "Yo I'm new here" + this.id);
+                    resolve();
+                });
+            }
+            else {
+                reject();
+            }
+        });
+    }
+    send(name, content) {
+        let obj = {};
+        obj[name] = content;
+        let message = JSON.stringify(obj);
+        this.ioClient.send(message);
+    }
+    disconnectListener() {
+        this.ioClient.onclose = () => {
+            console.log('disconnected');
+            this.cleanIntervals();
+            this.disconnect();
+            this.emit('clientDisconnect');
+        };
+    }
+    init() {
+        this.serverListen(); // open port
+        this.write(); // emiters
+        this.disconnectListener(); // disconnect protocol
+        this.setListeners(); // listener
     }
     setListeners() {
-        this.socketEmitter.on("updateNewSlave", (sockets) => {
-            this.dataManager.setSockets(sockets);
-            // this.dataManager.setData(data);
-            console.log("Data Length : ", this.dataManager.getData().length);
+        this.listen('idUpdate', (message) => {
+            console.info(message);
         });
-        this.socketEmitter.on('newSocket', (id, index) => {
-            this.dataManager.addSocket(id, index);
+        this.listen('new-socket', (message) => {
+            console.info(message);
         });
-        this.socketEmitter.on('dataSync', (data) => {
+        this.listen('alive', (message) => {
+            console.info(message);
+        });
+        this.listen('sync', (data) => {
             this.dataManager.addData(data);
         });
+        this.ioClient.onmessage = (message) => {
+            this.handleMessage(message.data);
+        };
     }
-    setConnectionListeners() {
-        this.socketEmitter.on('connect_error', () => {
-            console.log('connect_error');
-        });
-        this.socketEmitter.on('reconnect_error', () => {
-            console.log('reconnect_error');
-        });
-        this.socketEmitter.on('reconnect', (reconnect) => {
-            console.log('reconnect', reconnect);
-        });
-        this.socketEmitter.on('reconnect_attempt', (attemptNumber) => {
-            console.log('reconnect_attempt: ', attemptNumber);
-        });
-        this.socketEmitter.on('disconnect', (reason) => {
-            console.log('disconnect', reason);
-            this.emit('clientDisconnect');
-            this.disconnect();
-        });
+    newData(data) {
+        this.send('sync', data);
     }
     write() {
-        setInterval(() => {
-            let random = (Math.random() * 100).toString(36).substring(2, 8) + "::" + this.id;
-            this.dataManager.addData([random]);
-            this.socketEmitter.emit('dataSync', random);
-        }, 1000);
-        this.socketEmitter.on('newUpdate', (data) => {
-            console.log(data + "::" + this.id);
-        });
+        let interval2 = setInterval(() => {
+            this.send('alive', "Yo I'm alive" + this.id);
+        }, 1000 * 10);
+        this.intervals.push(interval2);
+    }
+    cleanIntervals() {
+        for (let interval of this.intervals) {
+            clearInterval(interval);
+        }
     }
     disconnect() {
-        this.socketEmitter.disconnect();
+        this.ioClient.close();
+    }
+    static getRandomPort() {
+        return Math.floor(Math.random() * (8000) + 1000);
     }
 }
 exports.WebClient = WebClient;
